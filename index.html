@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI画像検査＆照合システム (検査枠クロップ対応版)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI画像検査＆マルチ枠個別照合システム</title>
   
   <!-- TensorFlow.js & MobileNet & KNN Classifier 安定版 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
@@ -39,26 +39,29 @@
     header {
       background: var(--primary);
       color: white;
-      padding: 8px 16px;
+      padding: 6px 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      flex-shrink: 0;
     }
 
     .worker-bar {
       background: #e8eaf6;
-      padding: 6px 16px;
+      padding: 4px 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: bold;
       border-bottom: 1px solid #c5cae9;
+      flex-shrink: 0;
     }
 
     .main-wrap { display: flex; flex: 1; padding: 8px; gap: 8px; overflow: hidden; }
 
+    /* カメラ表示エリア */
     .viewport {
       flex: 3;
       background: #000;
@@ -75,22 +78,23 @@
 
     #aiLiveBadge {
       position: absolute;
-      top: 12px;
-      left: 12px;
-      background: rgba(0, 0, 0, 0.75);
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
       color: #ffeb3b;
-      padding: 6px 14px;
+      padding: 4px 10px;
       border-radius: 4px;
-      font-size: 0.95rem;
+      font-size: 0.85rem;
       font-weight: bold;
       z-index: 10;
     }
 
+    /* 操作パネルエリア */
     .panel {
-      flex: 1.4;
+      flex: 1.5;
       background: var(--panel);
       border-radius: 6px;
-      padding: 12px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -99,7 +103,7 @@
     }
 
     .sec-title {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: bold;
       color: #37474f;
       border-left: 4px solid var(--primary);
@@ -140,6 +144,33 @@
       gap: 6px;
     }
 
+    .roi-list-box {
+      max-height: 120px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      border: 1px solid #cfd8dc;
+      padding: 4px;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+
+    .roi-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      padding: 4px 6px;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      border: 1px solid #e0e0e0;
+    }
+    .roi-item.active {
+      border: 2px solid var(--primary);
+      background: #e3f2fd;
+    }
+
     .lock-overlay {
       position: fixed;
       inset: 0;
@@ -152,95 +183,52 @@
       justify-content: center;
       gap: 16px;
       text-align: center;
+      padding: 20px;
     }
-/* =========================================
-   スマートフォン向け最適化スタイル (幅768px以下)
-   ========================================= */
-@media (max-width: 768px) {
-  body {
-    height: auto;
-    min-height: 100vh;
-    overflow-y: auto; /* 縦スクロールを許可 */
-  }
 
-  header {
-    padding: 6px 12px;
-  }
-  header h3 {
-    font-size: 1rem;
-  }
+    /* =========================================
+       ★ スマホ最適化 (幅768px以下) ★
+       カメラ・操作パネルを最上部へ再配置
+       ========================================= */
+    @media (max-width: 768px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+      }
+      .main-wrap {
+        flex-direction: column;
+        height: auto;
+        padding: 4px;
+        gap: 6px;
+      }
+      .viewport {
+        flex: none;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        max-height: 40vh;
+      }
+      .panel {
+        flex: none;
+        width: 100%;
+        overflow-y: visible;
+        padding: 6px;
+        gap: 8px;
+      }
+      /* スマホ時の順序入れ替え (AI学習・検査操作を上位に) */
+      #secAction { order: 1; }
+      #secAI { order: 2; }
+      #secRoi { order: 3; }
+      #secProfile { order: 4; }
 
-  .worker-bar {
-    padding: 4px 12px;
-    font-size: 0.8rem;
-  }
-
-  /* メイン配置を縦積みに変更 */
-  .main-wrap {
-    flex-direction: column;
-    height: auto;
-    padding: 6px;
-    gap: 8px;
-    overflow: visible;
-  }
-
-  /* カメラ表示枠：スマホ幅いっぱいに拡大 */
-  .viewport {
-    flex: none;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    max-height: 45vh;
-  }
-
-  /* 操作パネル：下部にスクロール展開 */
-  .panel {
-    flex: none;
-    width: 100%;
-    max-height: none;
-    overflow-y: visible;
-    padding: 10px;
-    gap: 10px;
-  }
-
-  /* ボタン・入力欄のタッチ操作性向上 */
-  .btn {
-    padding: 10px 12px;
-    font-size: 0.9rem;
-  }
-
-  /* AI学習ボタンを押しやすく大型化 */
-  .ai-card .btn-group,
-  .ai-card div[style*="display:flex; gap:6px;"] {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .ai-card .btn {
-    padding: 12px 8px;
-    font-size: 0.95rem;
-  }
-
-  /* 入力欄のフォントサイズ調整（iOS自動ズーム対策） */
-  input, select {
-    font-size: 16px !important;
-    padding: 8px;
-  }
-
-  /* 最下部のカメラ起動・検査実行ボタン */
-  .panel > div:last-child {
-    position: sticky;
-    bottom: 0;
-    background: var(--panel);
-    padding-top: 8px;
-    padding-bottom: 8px;
-    z-index: 50;
-    border-top: 1px solid #cfd8dc;
-  }
-  .panel > div:last-child .btn-success {
-    padding: 14px;
-    font-size: 1.1rem;
-  }
-}
+      .btn {
+        padding: 10px;
+        font-size: 0.85rem;
+      }
+      input, select {
+        font-size: 16px !important; /* iOSズーム防止 */
+      }
+    }
   </style>
 </head>
 <body>
@@ -248,21 +236,22 @@
   <div id="borderFlash"></div>
 
   <header>
-    <h3>AI画像検査＆照合システム</h3>
-    <div style="font-size: 0.85rem; display:flex; gap:6px;">
-      <button class="btn btn-outline" onclick="exportLogsCSV()">CSVログ出力</button>
+    <h3>AI画像検査＆マルチ枠個別照合</h3>
+    <div style="font-size: 0.85rem;">
+      <button class="btn btn-outline" style="padding:4px 8px;" onclick="exportLogsCSV()">CSV出力</button>
     </div>
   </header>
 
   <div class="worker-bar">
-    <div>担当者: <span id="lblWorker" style="color:red;">未登録</span></div>
-    <div style="display:flex; gap:6px;">
-      <input type="text" id="txtWorker" placeholder="作業者ID" style="width:110px;">
-      <button class="btn btn-primary" onclick="setWorker()">登録</button>
+    <div>担当: <span id="lblWorker" style="color:red;">未登録</span></div>
+    <div style="display:flex; gap:4px;">
+      <input type="text" id="txtWorker" placeholder="作業者ID" style="width:90px;">
+      <button class="btn btn-primary" style="padding:2px 8px;" onclick="setWorker()">登録</button>
     </div>
   </div>
 
   <div class="main-wrap">
+    <!-- カメラ映像ビューポート -->
     <div class="viewport">
       <div id="aiLiveBadge">AI初期化待機中...</div>
       <video id="videoSource" playsinline autoplay muted></video>
@@ -270,15 +259,55 @@
       <div id="qrReaderHidden" style="display:none; position:absolute; width:200px; height:200px;"></div>
     </div>
 
+    <!-- 操作パネル -->
     <div class="panel">
-      <!-- 1. プロファイル設定 & JSON入出力 -->
-      <div>
-        <div class="sec-title">① プロファイル管理 (JSON共有対応)</div>
+      <!-- 1. 検査実行・カメラ起動 (最優先アクション) -->
+      <div id="secAction">
+        <div class="btn-group">
+          <button id="btnCam" class="btn btn-primary" style="flex:1;" onclick="toggleCam()">📷 カメラ起動</button>
+          <button class="btn btn-success" style="flex:1.5; font-size:1.05rem;" onclick="executeInspection()">🔍 全枠一括検査 (Space)</button>
+        </div>
+      </div>
+
+      <!-- 2. AI学習コントロール -->
+      <div id="secAI" class="ai-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b style="font-size:0.8rem; color:var(--ai-color);">🤖 選択枠のAI学習</b>
+          <span id="lblActiveRoiInfo" style="font-size:0.75rem; font-weight:bold; color:var(--primary);">枠 1 選択中</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-success" style="flex:1; padding:12px 6px;" onmousedown="startLearning('OK')" onmouseup="stopLearning()" ontouchstart="startLearning('OK')" ontouchend="stopLearning()">
+            ＋ OK学習 (<span id="countOk">0</span>)
+          </button>
+          <button class="btn btn-danger" style="flex:1; padding:12px 6px;" onmousedown="startLearning('NG')" onmouseup="stopLearning()" ontouchstart="startLearning('NG')" ontouchend="stopLearning()">
+            ＋ NG学習 (<span id="countNg">0</span>)
+          </button>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+          <span>AI合格確信度閾値:</span>
+          <input type="number" id="numAiThreshold" value="70" min="1" max="100" style="width:60px; text-align:center;"> %
+        </div>
+        <button class="btn btn-outline" style="font-size:0.75rem;" onclick="clearAiClasses()">選択枠のAI学習を初期化</button>
+      </div>
+
+      <!-- 3. マルチ検査枠（ROI）管理 -->
+      <div id="secRoi">
+        <div class="sec-title">マルチ検査枠 (画面ドラッグで枠追加)</div>
+        <div class="btn-group" style="margin-bottom:4px;">
+          <button class="btn btn-outline" style="flex:1;" onclick="addCenterRoi()">＋ 枠を中央追加</button>
+          <button class="btn btn-danger" onclick="clearAllRois()">全枠削除</button>
+        </div>
+        <div class="roi-list-box" id="roiListContainer"></div>
+      </div>
+
+      <!-- 4. プロファイル管理 & JSON入出力 -->
+      <div id="secProfile">
+        <div class="sec-title">プロファイル・設定共有 (JSON)</div>
         <div class="btn-group" style="margin-bottom:4px;">
           <select id="selProfile" onchange="loadProfile()"></select>
           <button class="btn btn-danger" onclick="deleteProfile()">削除</button>
         </div>
-        <div class="btn-group" style="margin-bottom:6px;">
+        <div class="btn-group" style="margin-bottom:4px;">
           <input type="text" id="txtProfileName" placeholder="保存名 (例: 品番A)">
           <button class="btn btn-primary" onclick="saveProfile()">保存</button>
           <button class="btn btn-dark" onclick="scanQrProfile()">QR読込</button>
@@ -289,113 +318,32 @@
           <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('fileJsonInput').click()">📥 JSON読込</button>
         </div>
       </div>
-
-      <!-- 2. モード選択 -->
-      <div>
-        <div class="sec-title">② 検査モード選択</div>
-        <div class="btn-group" style="margin-bottom:4px;">
-          <button id="btnModeAI" class="btn btn-ai" style="flex:1;" onclick="setMode('AI')">🤖 AI転移学習</button>
-          <button id="btnModeCompare" class="btn btn-outline" style="flex:1;" onclick="setMode('COMPARE')">画像照合</button>
-          <button id="btnModeColor" class="btn btn-outline" style="flex:1;" onclick="setMode('COLOR')">色面積測定</button>
-        </div>
-      </div>
-
-      <!-- 3-A. AI転移学習 -->
-      <div id="areaAI" class="ai-card">
-        <div style="font-size:0.8rem; font-weight:bold; color:var(--ai-color);">AI検査・学習コントロール</div>
-        <div style="display:flex; gap:6px;">
-          <button class="btn btn-success" style="flex:1;" onmousedown="startLearning('OK')" onmouseup="stopLearning()" ontouchstart="startLearning('OK')" ontouchend="stopLearning()">
-            ＋ OK学習 (<span id="countOk">0</span>)
-          </button>
-          <button class="btn btn-danger" style="flex:1;" onmousedown="startLearning('NG')" onmouseup="stopLearning()" ontouchstart="startLearning('NG')" ontouchend="stopLearning()">
-            ＋ NG学習 (<span id="countNg">0</span>)
-          </button>
-        </div>
-        <div style="display:flex; align-items:center; justify-content:space-between; font-size:0.8rem; margin-top:4px;">
-          <label style="font-weight:bold; color:#4a148c;">合格判定 確信度閾値 (%):</label>
-          <input type="number" id="numAiThreshold" value="70" min="1" max="100" style="width:70px; text-align:center; font-weight:bold;">
-        </div>
-        <!-- AI検査枠設定 -->
-        <div style="background:white; padding:6px; border-radius:4px; margin-top:4px; font-size:0.75rem; border:1px solid #ce93d8;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-            <b>🎯 AI検査・学習枠:</b>
-            <span id="lblAiRoiStatus" style="color:#7b1fa2; font-weight:bold;">画面全体</span>
-          </div>
-          <div style="display:flex; gap:4px;">
-            <button class="btn btn-outline" style="flex:1; font-size:0.75rem;" onclick="resetAiRoiCenter()">枠を中央に配置</button>
-            <button class="btn btn-outline" style="flex:1; font-size:0.75rem;" onclick="clearAiRoi()">全体に戻す</button>
-          </div>
-          <div style="color:#666; font-size:0.7rem; margin-top:4px;">※画面上をドラッグして検査枠のサイズ・位置を自由に変更できます。</div>
-        </div>
-        <button class="btn btn-outline" style="font-size:0.75rem; margin-top:2px;" onclick="clearAiClasses()">AI学習データをクリア</button>
-      </div>
-
-      <!-- 3-B. 画像照合 -->
-      <div id="areaCompare" style="display:none;">
-        <div class="sec-title">③ マスター画像照合</div>
-        <div class="btn-group" style="margin-bottom:4px;">
-          <button class="btn btn-primary" style="flex:1;" onclick="captureMaster()">現在の映像をマスター化</button>
-          <input type="file" id="fileMaster" accept="image/*" style="display:none;" onchange="loadMasterFile(event)">
-          <button class="btn btn-outline" onclick="document.getElementById('fileMaster').click()">ファイル読込</button>
-        </div>
-        <div style="font-size:0.75rem;">
-          一致率閾値 (%): <input type="number" id="numThreshold" value="85" min="1" max="100">
-        </div>
-        <div style="font-size:0.7rem; color:#666; margin-top:4px;">※画面ドラッグで照合枠を設定すると、枠内のみを部分比較します。</div>
-      </div>
-
-      <!-- 3-C. 色面積 -->
-      <div id="areaColor" style="display:none;">
-        <div class="sec-title">③ 色面積枠設定 (スポイト対応)</div>
-        <div class="btn-group" style="margin-bottom:4px;">
-          <button id="btnEyedropper" class="btn btn-outline" onclick="toggleEyedropper()">🎯 スポイトON</button>
-          <button class="btn btn-danger" onclick="clearRois()">全枠消去</button>
-        </div>
-        <div id="roiContainer" style="display:flex; flex-direction:column; gap:4px; max-height:100px; overflow-y:auto;"></div>
-      </div>
-
-      <!-- 4. 実行操作 -->
-      <div style="margin-top:auto; display:flex; flex-direction:column; gap:6px;">
-        <div style="font-size:0.75rem; color:#666; text-align:center;">※[Spaceキー] で検査実行</div>
-        <div class="btn-group">
-          <button id="btnCam" class="btn btn-primary" style="flex:1;" onclick="toggleCam()">カメラ起動</button>
-          <button class="btn btn-success" style="flex:1.5; font-size:1rem;" onclick="executeInspection()">検査実行</button>
-        </div>
-      </div>
     </div>
   </div>
 
+  <!-- NG画面ロック -->
   <div class="lock-overlay" id="ngLockOverlay">
-    <h1 style="font-size:3.5rem;">⚠️ 検査 NG</h1>
-    <p id="ngReasonText" style="font-size:1.2rem;">規定値と一致しませんでした</p>
-    <button class="btn btn-outline" style="padding:12px 24px; font-size:1.1rem; background:white; color:red;" onclick="unlockNgScreen()">確認して解除</button>
+    <h1 style="font-size:3rem;">⚠️ 検査 NG</h1>
+    <div id="ngReasonDetails" style="font-size:1.1rem; max-height:40vh; overflow-y:auto; text-align:left; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; width:100%;"></div>
+    <button class="btn btn-outline" style="padding:12px 24px; font-size:1rem; background:white; color:red; margin-top:10px;" onclick="unlockNgScreen()">確認して解除</button>
   </div>
 
   <script>
-    let mode = 'AI';
     let isCamRunning = false;
     let camStream = null;
 
-    // AI用
     let mobilenetModel = null;
-    let knnClassifierInstance = null;
     let learnInterval = null;
-    let okCount = 0;
-    let ngCount = 0;
-    let aiCropRoi = null; // {x, y, w, h} または null(全体)
 
-    // 画像照合 & 色面積用
-    let masterImg = null;
-    let compareRoi = null; // 画像照合用の枠
-    let rois = []; // 色面積測定用の複数枠
-    let isEyedropper = false;
+    // マルチROI管理: 各枠が個別の学習データ(KNN)や色設定を持つ
+    let multiRois = [];
+    let activeRoiIndex = 0;
+
     let isDrawing = false, sX = 0, sY = 0, eX = 0, eY = 0;
 
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const video = document.getElementById('videoSource');
-
-    // クロップ処理用オフスクリーンキャンバス
     const cropCanvas = document.createElement('canvas');
     const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
 
@@ -404,16 +352,10 @@
       const badge = document.getElementById('aiLiveBadge');
       badge.style.display = 'block';
       badge.textContent = 'AIモデル読込中...';
-      badge.style.color = '#ffeb3b';
 
       let retry = 0;
       while (retry < 30) {
-        const tfOk = typeof tf !== 'undefined';
-        const mbOk = typeof mobilenet !== 'undefined';
-        const knnOk = (typeof knnClassifier !== 'undefined' && knnClassifier !== null) ||
-                      (tfOk && typeof tf.knnClassifier !== 'undefined');
-
-        if (tfOk && mbOk && knnOk) break;
+        if (typeof tf !== 'undefined' && typeof mobilenet !== 'undefined') break;
         await new Promise(r => setTimeout(r, 500));
         retry++;
       }
@@ -421,22 +363,117 @@
       try {
         await tf.ready();
         mobilenetModel = await mobilenet.load({ version: 2, alpha: 1.0 });
-
-        if (typeof knnClassifier !== 'undefined' && knnClassifier.create) {
-          knnClassifierInstance = knnClassifier.create();
-        } else if (typeof tf !== 'undefined' && tf.knnClassifier && tf.knnClassifier.create) {
-          knnClassifierInstance = tf.knnClassifier.create();
-        } else {
-          throw new Error('KNN Classifier ライブラリの取得に失敗しました');
-        }
-
         badge.textContent = 'AI準備完了';
         badge.style.color = '#00e676';
+        
+        if (multiRois.length === 0) {
+          addRoi(50, 50, 200, 200, 'AI');
+        }
       } catch (e) {
-        console.error('AI Init Detail Error:', e);
         badge.textContent = 'AIロード失敗: ' + e.message;
         badge.style.color = '#ff5252';
       }
+    }
+
+    // --- ROI管理 ---
+    function createNewRoi(x, y, w, h, type = 'AI') {
+      const knn = (typeof knnClassifier !== 'undefined' && knnClassifier.create) ? knnClassifier.create() :
+                  (typeof tf !== 'undefined' && tf.knnClassifier) ? tf.knnClassifier.create() : null;
+      return {
+        id: Date.now() + Math.random(),
+        name: `枠 ${multiRois.length + 1}`,
+        x, y, w, h,
+        type, // 'AI' or 'COLOR'
+        knn,
+        okCount: 0,
+        ngCount: 0,
+        targetColor: '#ff0000',
+        tolerance: 40,
+        minRatio: 10,
+        lastStatus: '-'
+      };
+    }
+
+    function addRoi(x, y, w, h, type = 'AI') {
+      const roi = createNewRoi(x, y, w, h, type);
+      multiRois.push(roi);
+      activeRoiIndex = multiRois.length - 1;
+      updateRoiListUI();
+      drawCanvas();
+    }
+
+    function addCenterRoi() {
+      const w = Math.round(canvas.width * 0.4);
+      const h = Math.round(canvas.height * 0.4);
+      const x = Math.round((canvas.width - w) / 2);
+      const y = Math.round((canvas.height - h) / 2);
+      addRoi(x, y, w, h, 'AI');
+    }
+
+    function selectActiveRoi(idx) {
+      activeRoiIndex = idx;
+      updateRoiListUI();
+      drawCanvas();
+    }
+
+    function deleteRoi(idx, e) {
+      if (e) e.stopPropagation();
+      if (multiRois[idx].knn) multiRois[idx].knn.clearAllClasses();
+      multiRois.splice(idx, 1);
+      if (activeRoiIndex >= multiRois.length) activeRoiIndex = Math.max(0, multiRois.length - 1);
+      updateRoiListUI();
+      drawCanvas();
+    }
+
+    function clearAllRois() {
+      multiRois.forEach(r => { if(r.knn) r.knn.clearAllClasses(); });
+      multiRois = [];
+      activeRoiIndex = 0;
+      updateRoiListUI();
+      drawCanvas();
+    }
+
+    function updateRoiListUI() {
+      const container = document.getElementById('roiListContainer');
+      container.innerHTML = '';
+
+      multiRois.forEach((r, idx) => {
+        const div = document.createElement('div');
+        div.className = `roi-item ${idx === activeRoiIndex ? 'active' : ''}`;
+        div.onclick = () => selectActiveRoi(idx);
+        div.innerHTML = `
+          <div>
+            <b>${r.name}</b> (${r.type})
+            <span style="font-size:0.7rem; color:#666;">[OK:${r.okCount} / NG:${r.ngCount}]</span>
+          </div>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <select style="width:70px; padding:2px; font-size:0.7rem;" onchange="changeRoiType(${idx}, this.value, event)">
+              <option value="AI" ${r.type === 'AI' ? 'selected' : ''}>AI外観</option>
+              <option value="COLOR" ${r.type === 'COLOR' ? 'selected' : ''}>色面積</option>
+            </select>
+            <button class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;" onclick="deleteRoi(${idx}, event)">×</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      if (multiRois[activeRoiIndex]) {
+        const ar = multiRois[activeRoiIndex];
+        document.getElementById('lblActiveRoiInfo').textContent = `${ar.name} 選択中`;
+        document.getElementById('countOk').textContent = ar.okCount;
+        document.getElementById('countNg').textContent = ar.ngCount;
+      } else {
+        document.getElementById('lblActiveRoiInfo').textContent = '枠なし';
+        document.getElementById('countOk').textContent = '0';
+        document.getElementById('countNg').textContent = '0';
+      }
+    }
+
+    function changeRoiType(idx, newType, e) {
+      if (e) e.stopPropagation();
+      multiRois[idx].type = newType;
+      updateRoiListUI();
+      drawCanvas();
     }
 
     // --- カメラ制御 ---
@@ -446,7 +483,7 @@
         if (camStream) camStream.getTracks().forEach(t => t.stop());
         video.pause();
         isCamRunning = false;
-        btn.textContent = 'カメラ起動';
+        btn.textContent = '📷 カメラ起動';
       } else {
         try {
           camStream = await navigator.mediaDevices.getUserMedia({
@@ -457,17 +494,13 @@
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           isCamRunning = true;
-          btn.textContent = 'カメラ停止';
+          btn.textContent = '⏹ カメラ停止';
           requestAnimationFrame(renderLoop);
         } catch(err) { alert('カメラ起動エラー: ' + err.message); }
       }
     }
 
-    // --- クロップ画像テンソル抽出（枠内のみを取得） ---
-    function getCroppedTensor(roi) {
-      if (!roi) {
-        return tf.browser.fromPixels(video);
-      }
+    function getCroppedRoiTensor(roi) {
       cropCanvas.width = roi.w;
       cropCanvas.height = roi.h;
       cropCtx.drawImage(video, roi.x, roi.y, roi.w, roi.h, 0, 0, roi.w, roi.h);
@@ -478,90 +511,59 @@
       if (!isCamRunning) return;
       drawCanvas();
 
-      if (mode === 'AI' && mobilenetModel && knnClassifierInstance && knnClassifierInstance.getNumClasses() > 0) {
-        try {
-          const x = getCroppedTensor(aiCropRoi);
-          const logits = mobilenetModel.infer(x, true);
-          const res = await knnClassifierInstance.predictClass(logits, 5);
-          x.dispose();
-          logits.dispose();
-
-          const conf = Math.round((res.confidences[res.label] || 0) * 100);
-          const badge = document.getElementById('aiLiveBadge');
-          badge.textContent = `リアルタイムAI: ${res.label} (${conf}%)`;
-          badge.style.color = res.label === 'OK' ? '#00e676' : '#ff5252';
-        } catch(e){}
+      // 各枠のリアルタイム推論
+      for (let i = 0; i < multiRois.length; i++) {
+        const r = multiRois[i];
+        if (r.type === 'AI' && mobilenetModel && r.knn && r.knn.getNumClasses() > 0) {
+          try {
+            const x = getCroppedRoiTensor(r);
+            const logits = mobilenetModel.infer(x, true);
+            const res = await r.knn.predictClass(logits, 5);
+            x.dispose();
+            logits.dispose();
+            const conf = Math.round((res.confidences[res.label] || 0) * 100);
+            r.lastStatus = `${res.label} (${conf}%)`;
+          } catch(e){}
+        }
       }
 
       requestAnimationFrame(renderLoop);
     }
 
     function drawCanvas() {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (isCamRunning && video.readyState >= 2) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      } else if (masterImg) {
-        ctx.drawImage(masterImg, 0, 0, canvas.width, canvas.height);
       }
 
-      // AIモード時の検査枠描画
-      if (mode === 'AI') {
-        if (aiCropRoi) {
-          ctx.strokeStyle = '#ab47bc';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(aiCropRoi.x, aiCropRoi.y, aiCropRoi.w, aiCropRoi.h);
-          ctx.fillStyle = 'rgba(171, 71, 188, 0.15)';
-          ctx.fillRect(aiCropRoi.x, aiCropRoi.y, aiCropRoi.w, aiCropRoi.h);
+      multiRois.forEach((r, idx) => {
+        const isActive = idx === activeRoiIndex;
+        ctx.strokeStyle = isActive ? '#ffeb3b' : (r.type === 'AI' ? '#ab47bc' : '#00e676');
+        ctx.lineWidth = isActive ? 3 : 2;
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
 
-          ctx.fillStyle = '#7b1fa2';
-          ctx.fillRect(aiCropRoi.x, aiCropRoi.y - 20, 110, 20);
-          ctx.fillStyle = '#fff';
-          ctx.font = '12px sans-serif';
-          ctx.fillText('🎯 AI検査・学習枠', aiCropRoi.x + 4, aiCropRoi.y - 5);
-        }
-      }
+        ctx.fillStyle = isActive ? 'rgba(255, 235, 59, 0.15)' : 'rgba(0, 0, 0, 0.15)';
+        ctx.fillRect(r.x, r.y, r.w, r.h);
 
-      // 画像照合モード時の枠描画
-      if (mode === 'COMPARE') {
-        if (compareRoi) {
-          ctx.strokeStyle = '#29b6f6';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(compareRoi.x, compareRoi.y, compareRoi.w, compareRoi.h);
-          ctx.fillStyle = 'rgba(41, 182, 246, 0.15)';
-          ctx.fillRect(compareRoi.x, compareRoi.y, compareRoi.w, compareRoi.h);
+        // ラベル描画
+        ctx.fillStyle = '#000';
+        ctx.fillRect(r.x, r.y - 18, 110, 18);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(`${r.name}: ${r.lastStatus}`, r.x + 4, r.y - 5);
+      });
 
-          ctx.fillStyle = '#0288d1';
-          ctx.fillRect(compareRoi.x, compareRoi.y - 20, 80, 20);
-          ctx.fillStyle = '#fff';
-          ctx.font = '12px sans-serif';
-          ctx.fillText('照合対象枠', compareRoi.x + 4, compareRoi.y - 5);
-        }
-      }
-
-      // 色面積測定モード時の枠描画
-      if (mode === 'COLOR') {
-        rois.forEach((r, idx) => {
-          ctx.strokeStyle = '#00e676'; ctx.lineWidth = 2;
-          ctx.strokeRect(r.x, r.y, r.w, r.h);
-          ctx.fillStyle = 'rgba(0, 230, 118, 0.15)';
-          ctx.fillRect(r.x, r.y, r.w, r.h);
-          ctx.fillStyle = '#000'; ctx.fillRect(r.x, r.y - 18, 50, 18);
-          ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif';
-          ctx.fillText(`枠 ${idx+1}`, r.x + 4, r.y - 4);
-        });
-      }
-
-      // ドラッグ中の枠描画
       if (isDrawing) {
-        ctx.strokeStyle = '#ffeb3b';
+        ctx.strokeStyle = '#00e676';
         ctx.lineWidth = 2;
         ctx.strokeRect(sX, sY, eX - sX, eY - sY);
       }
     }
 
-    // --- AI学習制御（枠内クロップ対応） ---
+    // --- AI学習制御 ---
     function startLearning(label) {
       if (!isCamRunning) return alert('カメラを起動してください');
+      if (!multiRois[activeRoiIndex]) return alert('学習する枠を選択してください');
       if (learnInterval) clearInterval(learnInterval);
       learnSample(label);
       learnInterval = setInterval(() => learnSample(label), 200);
@@ -575,112 +577,62 @@
     }
 
     function learnSample(label) {
-      if (!mobilenetModel || !knnClassifierInstance || !isCamRunning) return;
-      const x = getCroppedTensor(aiCropRoi);
+      const r = multiRois[activeRoiIndex];
+      if (!mobilenetModel || !r.knn || !isCamRunning) return;
+
+      const x = getCroppedRoiTensor(r);
       const logits = mobilenetModel.infer(x, true);
-      knnClassifierInstance.addExample(logits, label);
+      r.knn.addExample(logits, label);
       x.dispose();
       logits.dispose();
 
-      if (label === 'OK') {
-        okCount++;
-        document.getElementById('countOk').textContent = okCount;
-      } else {
-        ngCount++;
-        document.getElementById('countNg').textContent = ngCount;
-      }
+      if (label === 'OK') r.okCount++;
+      else r.ngCount++;
+
+      updateRoiListUI();
       beep(label === 'OK' ? 1400 : 600, 0.05);
     }
 
     function clearAiClasses() {
-      if (!knnClassifierInstance) return;
-      knnClassifierInstance.clearAllClasses();
-      okCount = 0;
-      ngCount = 0;
-      document.getElementById('countOk').textContent = '0';
-      document.getElementById('countNg').textContent = '0';
-      alert('AI学習データを初期化しました');
+      const r = multiRois[activeRoiIndex];
+      if (!r || !r.knn) return;
+      r.knn.clearAllClasses();
+      r.okCount = 0;
+      r.ngCount = 0;
+      updateRoiListUI();
+      alert(`[${r.name}] のAI学習データを初期化しました`);
     }
 
-    // AI枠の操作
-    function resetAiRoiCenter() {
-      const w = Math.round(canvas.width * 0.6);
-      const h = Math.round(canvas.height * 0.6);
-      const x = Math.round((canvas.width - w) / 2);
-      const y = Math.round((canvas.height - h) / 2);
-      aiCropRoi = { x, y, w, h };
-      updateAiRoiUI();
-      drawCanvas();
-    }
-
-    function clearAiRoi() {
-      aiCropRoi = null;
-      updateAiRoiUI();
-      drawCanvas();
-    }
-
-    function updateAiRoiUI() {
-      const lbl = document.getElementById('lblAiRoiStatus');
-      if (aiCropRoi) {
-        lbl.textContent = `枠指定中 [${Math.round(aiCropRoi.w)}x${Math.round(aiCropRoi.h)}]`;
-      } else {
-        lbl.textContent = '画面全体';
-      }
-    }
-
-    // --- 検査実行 ---
+    // --- 一括マルチ枠検査実行 ---
     async function executeInspection() {
-      if (mode === 'AI') {
-        if (!knnClassifierInstance || knnClassifierInstance.getNumClasses() === 0) {
-          return alert('学習データがありません。OK/NGボタンで学習させてください');
-        }
-        const x = getCroppedTensor(aiCropRoi);
-        const logits = mobilenetModel.infer(x, true);
-        const res = await knnClassifierInstance.predictClass(logits, 5);
-        x.dispose();
-        logits.dispose();
+      if (multiRois.length === 0) return alert('検査枠を設定してください');
 
-        const conf = Math.round((res.confidences[res.label] || 0) * 100);
-        const threshold = parseInt(document.getElementById('numAiThreshold').value, 10) || 70;
+      let allPass = true;
+      let ngReasons = [];
+      const threshold = parseInt(document.getElementById('numAiThreshold').value, 10) || 70;
 
-        if (res.label === 'OK' && conf >= threshold) {
-          notifyResult(true, `AI外観照合合格 (確信度: ${conf}% >= 閾値: ${threshold}%)`);
-        } else if (res.label === 'OK' && conf < threshold) {
-          notifyResult(false, `AI判定NG: 確信度不足 (確信度: ${conf}% < 閾値: ${threshold}%)`);
-        } else {
-          notifyResult(false, `AI判定NG: 異品/NG判定 (確信度: ${conf}%)`);
-        }
-      } else if (mode === 'COMPARE') {
-        if (!masterImg) return alert('マスター画像を登録してください');
-        
-        const cropX = compareRoi ? compareRoi.x : 0;
-        const cropY = compareRoi ? compareRoi.y : 0;
-        const cropW = compareRoi ? compareRoi.w : canvas.width;
-        const cropH = compareRoi ? compareRoi.h : canvas.height;
+      for (let i = 0; i < multiRois.length; i++) {
+        const r = multiRois[i];
+        if (r.type === 'AI') {
+          if (!r.knn || r.knn.getNumClasses() === 0) {
+            allPass = false;
+            ngReasons.push(`❌ ${r.name}: 未学習です`);
+            continue;
+          }
+          const x = getCroppedRoiTensor(r);
+          const logits = mobilenetModel.infer(x, true);
+          const res = await r.knn.predictClass(logits, 5);
+          x.dispose();
+          logits.dispose();
 
-        const curImgData = ctx.getImageData(cropX, cropY, cropW, cropH);
-        const tCanvas = document.createElement('canvas');
-        tCanvas.width = canvas.width; tCanvas.height = canvas.height;
-        const tCtx = tCanvas.getContext('2d');
-        tCtx.drawImage(masterImg, 0, 0, canvas.width, canvas.height);
-        const masterImgData = tCtx.getImageData(cropX, cropY, cropW, cropH);
-
-        let diff = 0, total = curImgData.data.length / 4;
-        for (let i = 0; i < curImgData.data.length; i += 4) {
-          let diffVal = Math.abs(curImgData.data[i] - masterImgData.data[i]);
-          if (diffVal > 35) diff++;
-        }
-        const score = Math.max(0, Math.round((1 - (diff / total)) * 100));
-        const threshold = parseInt(document.getElementById('numThreshold').value, 10);
-        if (score >= threshold) {
-          notifyResult(true, `マスター照合一致 (一致率: ${score}%)`);
-        } else {
-          notifyResult(false, `画像不一致 (一致率: ${score}% < 閾値: ${threshold}%)`);
-        }
-      } else {
-        if (rois.length === 0) return alert('枠を設定してください');
-        let pass = true;
-        rois.forEach((r) => {
+          const conf = Math.round((res.confidences[res.label] || 0) * 100);
+          if (res.label === 'OK' && conf >= threshold) {
+            // 合格
+          } else {
+            allPass = false;
+            ngReasons.push(`❌ ${r.name}: ${res.label}判定 (確信度: ${conf}% / 基準: ${threshold}%)`);
+          }
+        } else if (r.type === 'COLOR') {
           const img = ctx.getImageData(r.x, r.y, r.w, r.h);
           const d = img.data;
           const trg = hexToRgb(r.targetColor);
@@ -690,13 +642,17 @@
             if (dist <= r.tolerance * 2) match++;
           }
           const ratio = (match / (r.w * r.h)) * 100;
-          if (ratio < r.minRatio) pass = false;
-        });
-        if (pass) {
-          notifyResult(true, '全枠色面積合格');
-        } else {
-          notifyResult(false, '色面積測定NG (許容範囲外)');
+          if (ratio < r.minRatio) {
+            allPass = false;
+            ngReasons.push(`❌ ${r.name}: 色面積不足 (${Math.round(ratio)}% < 基準:${r.minRatio}%)`);
+          }
         }
+      }
+
+      if (allPass) {
+        notifyResult(true, `全 ${multiRois.length} 枠 総合合格`);
+      } else {
+        notifyResult(false, ngReasons.join('<br>'));
       }
     }
 
@@ -724,7 +680,7 @@
     function notifyResult(isOk, msg) {
       const worker = document.getElementById('lblWorker').textContent;
       const profile = document.getElementById('selProfile').value || '未選択';
-      addLog(worker, profile, mode, isOk ? 'OK' : 'NG', msg);
+      addLog(worker, profile, 'MULTI_ROI', isOk ? 'OK' : 'NG', msg.replace(/<br>/g, ' '));
 
       if (isOk) {
         triggerFlash('OK');
@@ -733,7 +689,7 @@
         triggerFlash('NG');
         beep(300, 0.4, 'square');
         saveNgEvidenceImage();
-        document.getElementById('ngReasonText').textContent = msg;
+        document.getElementById('ngReasonDetails').innerHTML = msg;
         document.getElementById('ngLockOverlay').style.display = 'flex';
       }
     }
@@ -749,87 +705,84 @@
       link.click();
     }
 
-    // --- プロファイル保存/呼出/JSON入出力（ROI枠含む） ---
+    // --- プロファイル保存/呼出/JSON ---
     async function saveProfile() {
       const name = document.getElementById('txtProfileName').value.trim();
       if (!name) return alert('プロファイル名を入力してください');
 
-      let datasetObj = null;
-      if (knnClassifierInstance && knnClassifierInstance.getNumClasses() > 0) {
-        const dataset = knnClassifierInstance.getClassifierDataset();
-        datasetObj = {};
-        Object.keys(dataset).forEach((key) => {
-          const data = dataset[key].dataSync();
-          datasetObj[key] = { data: Array.from(data), shape: dataset[key].shape };
-        });
-      }
+      const roisData = multiRois.map(r => {
+        let datasetObj = null;
+        if (r.knn && r.knn.getNumClasses() > 0) {
+          const dataset = r.knn.getClassifierDataset();
+          datasetObj = {};
+          Object.keys(dataset).forEach((key) => {
+            datasetObj[key] = { data: Array.from(dataset[key].dataSync()), shape: dataset[key].shape };
+          });
+        }
+        return {
+          name: r.name, x: r.x, y: r.y, w: r.w, h: r.h, type: r.type,
+          okCount: r.okCount, ngCount: r.ngCount,
+          targetColor: r.targetColor, tolerance: r.tolerance, minRatio: r.minRatio,
+          dataset: datasetObj
+        };
+      });
 
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v9') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
       p[name] = {
-        mode,
-        rois,
-        aiCropRoi,
-        compareRoi,
-        threshold: document.getElementById('numThreshold').value,
-        aiThreshold: document.getElementById('numAiThreshold').value,
-        master: masterImg ? masterImg.src : null,
-        aiDataset: datasetObj,
-        okCount,
-        ngCount
+        roisData,
+        aiThreshold: document.getElementById('numAiThreshold').value
       };
 
-      localStorage.setItem('inspect_profiles_v9', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v10', JSON.stringify(p));
       updateProfileList();
-      alert(`プロファイル [${name}] (検査枠設定含む) を保存しました`);
+      alert(`プロファイル [${name}] を保存しました`);
     }
 
     async function loadProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v9') || '{}')[name];
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}')[name];
       if (!p) return;
 
-      rois = p.rois || [];
-      aiCropRoi = p.aiCropRoi || null;
-      compareRoi = p.compareRoi || null;
-      document.getElementById('numThreshold').value = p.threshold || 85;
+      clearAllRois();
       document.getElementById('numAiThreshold').value = p.aiThreshold || 70;
-      if (p.master) {
-        masterImg = new Image();
-        masterImg.onload = () => drawCanvas();
-        masterImg.src = p.master;
-      }
 
-      if (knnClassifierInstance && p.aiDataset) {
-        knnClassifierInstance.clearAllClasses();
-        const tensorObj = {};
-        Object.keys(p.aiDataset).forEach((key) => {
-          tensorObj[key] = tf.tensor(p.aiDataset[key].data, p.aiDataset[key].shape);
-        });
-        knnClassifierInstance.setClassifierDataset(tensorObj);
-        okCount = p.okCount || 0;
-        ngCount = p.ngCount || 0;
-        document.getElementById('countOk').textContent = okCount;
-        document.getElementById('countNg').textContent = ngCount;
-      }
+      (p.roisData || []).forEach(rd => {
+        const roi = createNewRoi(rd.x, rd.y, rd.w, rd.h, rd.type);
+        roi.name = rd.name;
+        roi.okCount = rd.okCount || 0;
+        roi.ngCount = rd.ngCount || 0;
+        roi.targetColor = rd.targetColor || '#ff0000';
+        roi.tolerance = rd.tolerance || 40;
+        roi.minRatio = rd.minRatio || 10;
 
-      setMode(p.mode || 'AI');
-      updateAiRoiUI();
-      updateRoiUI();
+        if (roi.knn && rd.dataset) {
+          const tensorObj = {};
+          Object.keys(rd.dataset).forEach((key) => {
+            tensorObj[key] = tf.tensor(rd.dataset[key].data, rd.dataset[key].shape);
+          });
+          roi.knn.setClassifierDataset(tensorObj);
+        }
+        multiRois.push(roi);
+      });
+
+      activeRoiIndex = 0;
+      updateRoiListUI();
+      drawCanvas();
     }
 
     function deleteProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name || !confirm('削除しますか？')) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v9') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
       delete p[name];
-      localStorage.setItem('inspect_profiles_v9', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v10', JSON.stringify(p));
       updateProfileList();
     }
 
     function updateProfileList() {
       const sel = document.getElementById('selProfile');
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v9') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
       sel.innerHTML = '<option value="">-- プロファイル選択 --</option>';
       Object.keys(p).forEach(k => {
         const opt = document.createElement('option'); opt.value = k; opt.textContent = k;
@@ -838,68 +791,37 @@
     }
 
     function exportProfilesJson() {
-      const p = localStorage.getItem('inspect_profiles_v9') || '{}';
+      const p = localStorage.getItem('inspect_profiles_v10') || '{}';
       const blob = new Blob([p], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `Inspect_Profiles_${Date.now()}.json`;
+      a.download = `Inspect_MultiRoi_Profiles_${Date.now()}.json`;
       a.click();
     }
 
     function importProfilesJson(e) {
       const file = e.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = function(evt) {
         try {
           const imported = JSON.parse(evt.target.result);
-          const current = JSON.parse(localStorage.getItem('inspect_profiles_v9') || '{}');
+          const current = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
           const merged = Object.assign({}, current, imported);
-          localStorage.setItem('inspect_profiles_v9', JSON.stringify(merged));
+          localStorage.setItem('inspect_profiles_v10', JSON.stringify(merged));
           updateProfileList();
-          alert('JSON設定ファイルを正常に読み込み、プロファイルを統合・復元しました');
-        } catch(err) {
-          alert('JSONファイルの読み込みに失敗しました: ' + err.message);
-        }
+          alert('JSON設定ファイルを読み込みました');
+        } catch(err) { alert('読み込み失敗: ' + err.message); }
       };
       reader.readAsText(file);
     }
 
-    function setMode(m) {
-      mode = m;
-      document.getElementById('btnModeAI').className = m === 'AI' ? 'btn btn-ai' : 'btn btn-outline';
-      document.getElementById('btnModeCompare').className = m === 'COMPARE' ? 'btn btn-dark' : 'btn btn-outline';
-      document.getElementById('btnModeColor').className = m === 'COLOR' ? 'btn btn-dark' : 'btn btn-outline';
-      document.getElementById('areaAI').style.display = m === 'AI' ? 'flex' : 'none';
-      document.getElementById('areaCompare').style.display = m === 'COMPARE' ? 'block' : 'none';
-      document.getElementById('areaColor').style.display = m === 'COLOR' ? 'block' : 'none';
-      document.getElementById('aiLiveBadge').style.display = m === 'AI' ? 'block' : 'none';
-      drawCanvas();
-    }
-
-    // --- マウスドラッグによる各モードの枠指定 ---
-    function toggleEyedropper() {
-      isEyedropper = !isEyedropper;
-      document.getElementById('btnEyedropper').className = isEyedropper ? 'btn btn-danger' : 'btn btn-outline';
-    }
-
+    // --- ドラッグによる枠追加 ---
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const clickY = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-      if (mode === 'COLOR' && isEyedropper) {
-        const p = ctx.getImageData(clickX, clickY, 1, 1).data;
-        const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1);
-        if (rois.length > 0) {
-          rois[rois.length - 1].targetColor = hex;
-          updateRoiUI();
-        }
-        toggleEyedropper();
-        return;
-      }
-      sX = clickX; sY = clickY; isDrawing = true;
+      sX = (e.clientX - rect.left) * (canvas.width / rect.width);
+      sY = (e.clientY - rect.top) * (canvas.height / rect.height);
+      isDrawing = true;
     });
 
     canvas.addEventListener('mousemove', (e) => {
@@ -915,56 +837,14 @@
       isDrawing = false;
       const x = Math.min(sX, eX), y = Math.min(sY, eY);
       const w = Math.abs(eX - sX), h = Math.abs(eY - sY);
-
-      if (w > 15 && h > 15) {
-        if (mode === 'AI') {
-          aiCropRoi = { x, y, w, h };
-          updateAiRoiUI();
-        } else if (mode === 'COMPARE') {
-          compareRoi = { x, y, w, h };
-        } else if (mode === 'COLOR') {
-          rois.push({ x, y, w, h, targetColor: '#ff0000', tolerance: 40, minRatio: 10 });
-          updateRoiUI();
-        }
-        drawCanvas();
+      if (w > 25 && h > 25) {
+        addRoi(x, y, w, h, 'AI');
       }
     });
-
-    function clearRois() { rois = []; updateRoiUI(); drawCanvas(); }
-    function updateRoiUI() {
-      const c = document.getElementById('roiContainer');
-      c.innerHTML = '';
-      rois.forEach((r, idx) => {
-        const div = document.createElement('div');
-        div.style = 'background:#f1f8e9; padding:3px; font-size:0.75rem; display:flex; align-items:center; justify-content:space-between;';
-        div.innerHTML = `
-          <span>枠${idx+1} 色:<input type="color" value="${r.targetColor}" style="width:20px; vertical-align:middle;" onchange="rois[${idx}].targetColor=this.value"> 閾値:${r.minRatio}%~</span>
-          <button class="btn btn-danger" style="padding:1px 5px;" onclick="rois.splice(${idx},1);updateRoiUI();drawCanvas();">×</button>
-        `;
-        c.appendChild(div);
-      });
-    }
 
     function hexToRgb(hex) {
       const num = parseInt(hex.replace('#',''), 16);
       return { r: (num>>16)&255, g: (num>>8)&255, b: num&255 };
-    }
-    function captureMaster() {
-      if (!isCamRunning) return alert('カメラを起動してください');
-      masterImg = new Image();
-      masterImg.src = canvas.toDataURL('image/jpeg');
-      alert('マスター画像を登録しました');
-    }
-    function loadMasterFile(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        masterImg = new Image();
-        masterImg.onload = () => drawCanvas();
-        masterImg.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
     }
     function scanQrProfile() {
       const qrHid = document.getElementById('qrReaderHidden');
@@ -986,20 +866,18 @@
       document.getElementById('txtWorker').value = '';
     }
     function addLog(worker, profile, mode, result, note) {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v9') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v10') || '[]');
       logs.unshift({ date: new Date().toLocaleString(), worker, profile, mode, result, note });
-      localStorage.setItem('inspect_logs_v9', JSON.stringify(logs.slice(0, 500)));
+      localStorage.setItem('inspect_logs_v10', JSON.stringify(logs.slice(0, 500)));
     }
     function exportLogsCSV() {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v9') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v10') || '[]');
       let csv = '日時,担当者,プロファイル,モード,結果,備考\r\n';
-      logs.forEach(l => {
-        csv += `"${l.date}","${l.worker}","${l.profile}","${l.mode}","${l.result}","${l.note}"\r\n`;
-      });
+      logs.forEach(l => { csv += `"${l.date}","${l.worker}","${l.profile}","${l.mode}","${l.result}","${l.note}"\r\n`; });
       const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `Inspection_AI_Log_${Date.now()}.csv`;
+      a.download = `Inspection_Multi_Log_${Date.now()}.csv`;
       a.click();
     }
 
