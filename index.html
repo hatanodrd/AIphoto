@@ -71,7 +71,7 @@
       overflow: hidden;
     }
 
-    #mainCanvas { width: 100%; height: 100%; object-fit: contain; cursor: crosshair; }
+    #mainCanvas { width: 100%; height: 100%; object-fit: contain; cursor: crosshair; touch-action: none; /* ★ スマホでの画面スクロールを防止 */}
     #videoSource { display: none; }
 
     #aiLiveBadge {
@@ -837,23 +837,36 @@
       reader.readAsText(file);
     }
 
-    // --- ドラッグによる枠追加 ---
-    canvas.addEventListener('mousedown', (e) => {
+// --- タッチ＆マウス対応：ドラッグによる枠追加 ---
+    function getCanvasCoords(e) {
       const rect = canvas.getBoundingClientRect();
-      sX = (e.clientX - rect.left) * (canvas.width / rect.width);
-      sY = (e.clientY - rect.top) * (canvas.height / rect.height);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function handleDragStart(e) {
+      if (e.touches && e.touches.length > 1) return;
+      if (e.cancelable) e.preventDefault();
+      const pos = getCanvasCoords(e);
+      sX = pos.x;
+      sY = pos.y;
       isDrawing = true;
-    });
+    }
 
-    canvas.addEventListener('mousemove', (e) => {
+    function handleDragMove(e) {
       if (!isDrawing) return;
-      const rect = canvas.getBoundingClientRect();
-      eX = (e.clientX - rect.left) * (canvas.width / rect.width);
-      eY = (e.clientY - rect.top) * (canvas.height / rect.height);
+      if (e.cancelable) e.preventDefault();
+      const pos = getCanvasCoords(e);
+      eX = pos.x;
+      eY = pos.y;
       drawCanvas();
-    });
+    }
 
-    canvas.addEventListener('mouseup', () => {
+    function handleDragEnd(e) {
       if (!isDrawing) return;
       isDrawing = false;
       const x = Math.min(sX, eX), y = Math.min(sY, eY);
@@ -861,8 +874,17 @@
       if (w > 25 && h > 25) {
         addRoi(x, y, w, h, 'AI');
       }
-    });
+    }
 
+    // マウス操作の登録
+    canvas.addEventListener('mousedown', handleDragStart);
+    canvas.addEventListener('mousemove', handleDragMove);
+    canvas.addEventListener('mouseup', handleDragEnd);
+
+    // タッチ操作の登録（画面スクロールを抑止）
+    canvas.addEventListener('touchstart', handleDragStart, { passive: false });
+    canvas.addEventListener('touchmove', handleDragMove, { passive: false });
+    canvas.addEventListener('touchend', handleDragEnd);
     function hexToRgb(hex) {
       const num = parseInt(hex.replace('#',''), 16);
       return { r: (num>>16)&255, g: (num>>8)&255, b: num&255 };
