@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI画像検査＆照合システム (安定版)</title>
+  <title>AI画像検査＆照合システム (JSON入出力・確信度設定版)</title>
   
-  <!-- TensorFlow.js 安定版CDN -->
+  <!-- TensorFlow.js & MobileNet & KNN Classifier 安定版 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
@@ -24,6 +24,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--bg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
+    /* 全画面外枠フラッシュ */
     #borderFlash {
       position: fixed;
       inset: 0;
@@ -160,7 +161,7 @@
 
   <header>
     <h3>AI画像検査＆照合システム</h3>
-    <div style="font-size: 0.85rem;">
+    <div style="font-size: 0.85rem; display:flex; gap:6px;">
       <button class="btn btn-outline" onclick="exportLogsCSV()">CSVログ出力</button>
     </div>
   </header>
@@ -182,17 +183,23 @@
     </div>
 
     <div class="panel">
-      <!-- 1. プロファイル設定 -->
+      <!-- 1. プロファイル設定 & JSON入出力 -->
       <div>
-        <div class="sec-title">① プロファイル設定 (QR呼出対応)</div>
+        <div class="sec-title">① プロファイル管理 (JSON共有対応)</div>
         <div class="btn-group" style="margin-bottom:4px;">
           <select id="selProfile" onchange="loadProfile()"></select>
           <button class="btn btn-danger" onclick="deleteProfile()">削除</button>
         </div>
-        <div class="btn-group">
+        <div class="btn-group" style="margin-bottom:6px;">
           <input type="text" id="txtProfileName" placeholder="保存名 (例: 品番A)">
           <button class="btn btn-primary" onclick="saveProfile()">保存</button>
           <button class="btn btn-dark" onclick="scanQrProfile()">QR読込</button>
+        </div>
+        <!-- JSONファイル入出力エリア -->
+        <div class="btn-group">
+          <button class="btn btn-outline" style="flex:1;" onclick="exportProfilesJson()">📁 JSON書出</button>
+          <input type="file" id="fileJsonInput" accept=".json" style="display:none;" onchange="importProfilesJson(event)">
+          <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('fileJsonInput').click()">📥 JSON読込</button>
         </div>
       </div>
 
@@ -208,7 +215,7 @@
 
       <!-- 3-A. AI転移学習 -->
       <div id="areaAI" class="ai-card">
-        <div style="font-size:0.8rem; font-weight:bold; color:var(--ai-color);">AI学習コントロール (ボタン長押し/連打)</div>
+        <div style="font-size:0.8rem; font-weight:bold; color:var(--ai-color);">AI学習コントロール</div>
         <div style="display:flex; gap:6px;">
           <button class="btn btn-success" style="flex:1;" onmousedown="startLearning('OK')" onmouseup="stopLearning()" ontouchstart="startLearning('OK')" ontouchend="stopLearning()">
             ＋ OK学習 (<span id="countOk">0</span>)
@@ -217,10 +224,14 @@
             ＋ NG学習 (<span id="countNg">0</span>)
           </button>
         </div>
-        <div style="font-size:0.75rem; color:#555;">
-          ※材料を少し傾けたり回しながら10〜15サンプルずつ登録してください。
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:0.8rem; margin-top:4px;">
+          <label style="font-weight:bold; color:#4a148c;">合格判定 確信度閾値 (%):</label>
+          <input type="number" id="numAiThreshold" value="70" min="1" max="100" style="width:70px; text-align:center; font-weight:bold;">
         </div>
-        <button class="btn btn-outline" style="font-size:0.75rem;" onclick="clearAiClasses()">AI学習データをクリア</button>
+        <div style="font-size:0.75rem; color:#666;">
+          ※OK判定時に必要なAI確信度の基準値（初期値: 70%）
+        </div>
+        <button class="btn btn-outline" style="font-size:0.75rem; margin-top:2px;" onclick="clearAiClasses()">AI学習データをクリア</button>
       </div>
 
       <!-- 3-B. 画像照合 -->
@@ -449,10 +460,14 @@
         logits.dispose();
 
         const conf = Math.round((res.confidences[res.label] || 0) * 100);
-        if (res.label === 'OK' && conf >= 70) {
-          notifyResult(true, `AI外観照合合格 (確信度: ${conf}%)`);
+        const threshold = parseInt(document.getElementById('numAiThreshold').value, 10) || 70;
+
+        if (res.label === 'OK' && conf >= threshold) {
+          notifyResult(true, `AI外観照合合格 (確信度: ${conf}% >= 閾値: ${threshold}%)`);
+        } else if (res.label === 'OK' && conf < threshold) {
+          notifyResult(false, `AI判定NG: 確信度不足 (確信度: ${conf}% < 閾値: ${threshold}%)`);
         } else {
-          notifyResult(false, `AI判定NG (判定: ${res.label} / 確信度: ${conf}%)`);
+          notifyResult(false, `AI判定NG: 異品/NG判定 (確信度: ${conf}%)`);
         }
       } else if (mode === 'COMPARE') {
         if (!masterImg) return alert('マスター画像を登録してください');
@@ -547,7 +562,7 @@
       link.click();
     }
 
-    // --- プロファイル保存/呼出 ---
+    // --- プロファイル保存/呼出/JSON入出力 ---
     async function saveProfile() {
       const name = document.getElementById('txtProfileName').value.trim();
       if (!name) return alert('プロファイル名を入力してください');
@@ -562,18 +577,19 @@
         });
       }
 
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v6') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v8') || '{}');
       p[name] = {
         mode,
         rois,
         threshold: document.getElementById('numThreshold').value,
+        aiThreshold: document.getElementById('numAiThreshold').value,
         master: masterImg ? masterImg.src : null,
         aiDataset: datasetObj,
         okCount,
         ngCount
       };
 
-      localStorage.setItem('inspect_profiles_v6', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v8', JSON.stringify(p));
       updateProfileList();
       alert(`プロファイル [${name}] を保存しました`);
     }
@@ -581,11 +597,12 @@
     async function loadProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v6') || '{}')[name];
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v8') || '{}')[name];
       if (!p) return;
 
       rois = p.rois || [];
       document.getElementById('numThreshold').value = p.threshold || 85;
+      document.getElementById('numAiThreshold').value = p.aiThreshold || 70;
       if (p.master) {
         masterImg = new Image();
         masterImg.onload = () => drawCanvas();
@@ -612,20 +629,51 @@
     function deleteProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name || !confirm('削除しますか？')) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v6') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v8') || '{}');
       delete p[name];
-      localStorage.setItem('inspect_profiles_v6', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v8', JSON.stringify(p));
       updateProfileList();
     }
 
     function updateProfileList() {
       const sel = document.getElementById('selProfile');
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v6') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v8') || '{}');
       sel.innerHTML = '<option value="">-- プロファイル選択 --</option>';
       Object.keys(p).forEach(k => {
         const opt = document.createElement('option'); opt.value = k; opt.textContent = k;
         sel.appendChild(opt);
       });
+    }
+
+    // ★ JSONファイル書き出し（エクスポート） ★
+    function exportProfilesJson() {
+      const p = localStorage.getItem('inspect_profiles_v8') || '{}';
+      const blob = new Blob([p], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Inspect_Profiles_${Date.now()}.json`;
+      a.click();
+    }
+
+    // ★ JSONファイル読み込み（インポート） ★
+    function importProfilesJson(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          const current = JSON.parse(localStorage.getItem('inspect_profiles_v8') || '{}');
+          const merged = Object.assign({}, current, imported);
+          localStorage.setItem('inspect_profiles_v8', JSON.stringify(merged));
+          updateProfileList();
+          alert('JSON設定ファイルを正常に読み込み、プロファイルを統合・復元しました');
+        } catch(err) {
+          alert('JSONファイルの読み込みに失敗しました: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
     }
 
     function setMode(m) {
@@ -741,12 +789,12 @@
       document.getElementById('txtWorker').value = '';
     }
     function addLog(worker, profile, mode, result, note) {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v6') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v8') || '[]');
       logs.unshift({ date: new Date().toLocaleString(), worker, profile, mode, result, note });
-      localStorage.setItem('inspect_logs_v6', JSON.stringify(logs.slice(0, 500)));
+      localStorage.setItem('inspect_logs_v8', JSON.stringify(logs.slice(0, 500)));
     }
     function exportLogsCSV() {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v6') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v8') || '[]');
       let csv = '日時,担当者,プロファイル,モード,結果,備考\r\n';
       logs.forEach(l => { csv += `"${l.date}","${l.worker}","${l.profile}","${l.mode}","${l.result}","${l.note}"\r\n`; });
       const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
