@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AI画像検査＆マルチ枠個別照合システム</title>
+  <title>AI画像検査＆マルチ枠個別照合システム (プルダウン改善版)</title>
   
   <!-- TensorFlow.js & MobileNet & KNN Classifier 安定版 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
@@ -24,7 +24,6 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--bg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
-    /* 全画面外枠フラッシュ */
     #borderFlash {
       position: fixed;
       inset: 0;
@@ -61,7 +60,6 @@
 
     .main-wrap { display: flex; flex: 1; padding: 8px; gap: 8px; overflow: hidden; }
 
-    /* カメラ表示エリア */
     .viewport {
       flex: 3;
       background: #000;
@@ -89,7 +87,6 @@
       z-index: 10;
     }
 
-    /* 操作パネルエリア */
     .panel {
       flex: 1.5;
       background: var(--panel);
@@ -144,14 +141,15 @@
       gap: 6px;
     }
 
+    /* マルチROIリスト */
     .roi-list-box {
-      max-height: 120px;
+      max-height: 140px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       border: 1px solid #cfd8dc;
-      padding: 4px;
+      padding: 6px;
       border-radius: 4px;
       background: #fafafa;
     }
@@ -161,14 +159,28 @@
       align-items: center;
       justify-content: space-between;
       background: #fff;
-      padding: 4px 6px;
-      border-radius: 3px;
-      font-size: 0.75rem;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
       border: 1px solid #e0e0e0;
+      gap: 6px;
     }
     .roi-item.active {
       border: 2px solid var(--primary);
       background: #e3f2fd;
+    }
+
+    .roi-type-select {
+      width: auto !important;
+      min-width: 90px;
+      padding: 6px 8px !important;
+      font-size: 0.85rem !important;
+      background: #fff;
+      border: 1.5px solid var(--primary) !important;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #1565c0;
     }
 
     .lock-overlay {
@@ -186,10 +198,7 @@
       padding: 20px;
     }
 
-    /* =========================================
-       ★ スマホ最適化 (幅768px以下) ★
-       カメラ・操作パネルを最上部へ再配置
-       ========================================= */
+    /* スマホ向け最適化 */
     @media (max-width: 768px) {
       body {
         height: auto;
@@ -215,7 +224,6 @@
         padding: 6px;
         gap: 8px;
       }
-      /* スマホ時の順序入れ替え (AI学習・検査操作を上位に) */
       #secAction { order: 1; }
       #secAI { order: 2; }
       #secRoi { order: 3; }
@@ -225,8 +233,12 @@
         padding: 10px;
         font-size: 0.85rem;
       }
+      .roi-type-select {
+        font-size: 16px !important; /* iOSでのズーム防止 */
+        padding: 8px 10px !important;
+      }
       input, select {
-        font-size: 16px !important; /* iOSズーム防止 */
+        font-size: 16px !important;
       }
     }
   </style>
@@ -251,7 +263,6 @@
   </div>
 
   <div class="main-wrap">
-    <!-- カメラ映像ビューポート -->
     <div class="viewport">
       <div id="aiLiveBadge">AI初期化待機中...</div>
       <video id="videoSource" playsinline autoplay muted></video>
@@ -259,9 +270,8 @@
       <div id="qrReaderHidden" style="display:none; position:absolute; width:200px; height:200px;"></div>
     </div>
 
-    <!-- 操作パネル -->
     <div class="panel">
-      <!-- 1. 検査実行・カメラ起動 (最優先アクション) -->
+      <!-- 1. 検査実行・カメラ起動 -->
       <div id="secAction">
         <div class="btn-group">
           <button id="btnCam" class="btn btn-primary" style="flex:1;" onclick="toggleCam()">📷 カメラ起動</button>
@@ -290,7 +300,7 @@
         <button class="btn btn-outline" style="font-size:0.75rem;" onclick="clearAiClasses()">選択枠のAI学習を初期化</button>
       </div>
 
-      <!-- 3. マルチ検査枠（ROI）管理 -->
+      <!-- 3. マルチ検査枠管理 -->
       <div id="secRoi">
         <div class="sec-title">マルチ検査枠 (画面ドラッグで枠追加)</div>
         <div class="btn-group" style="margin-bottom:4px;">
@@ -300,7 +310,7 @@
         <div class="roi-list-box" id="roiListContainer"></div>
       </div>
 
-      <!-- 4. プロファイル管理 & JSON入出力 -->
+      <!-- 4. プロファイル管理 -->
       <div id="secProfile">
         <div class="sec-title">プロファイル・設定共有 (JSON)</div>
         <div class="btn-group" style="margin-bottom:4px;">
@@ -321,7 +331,6 @@
     </div>
   </div>
 
-  <!-- NG画面ロック -->
   <div class="lock-overlay" id="ngLockOverlay">
     <h1 style="font-size:3rem;">⚠️ 検査 NG</h1>
     <div id="ngReasonDetails" style="font-size:1.1rem; max-height:40vh; overflow-y:auto; text-align:left; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; width:100%;"></div>
@@ -335,7 +344,6 @@
     let mobilenetModel = null;
     let learnInterval = null;
 
-    // マルチROI管理: 各枠が個別の学習データ(KNN)や色設定を持つ
     let multiRois = [];
     let activeRoiIndex = 0;
 
@@ -383,7 +391,7 @@
         id: Date.now() + Math.random(),
         name: `枠 ${multiRois.length + 1}`,
         x, y, w, h,
-        type, // 'AI' or 'COLOR'
+        type,
         knn,
         okCount: 0,
         ngCount: 0,
@@ -417,7 +425,10 @@
     }
 
     function deleteRoi(idx, e) {
-      if (e) e.stopPropagation();
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
       if (multiRois[idx].knn) multiRois[idx].knn.clearAllClasses();
       multiRois.splice(idx, 1);
       if (activeRoiIndex >= multiRois.length) activeRoiIndex = Math.max(0, multiRois.length - 1);
@@ -433,6 +444,7 @@
       drawCanvas();
     }
 
+    // ★ プルダウンタップ時の干渉防止を強化 ★
     function updateRoiListUI() {
       const container = document.getElementById('roiListContainer');
       container.innerHTML = '';
@@ -440,18 +452,25 @@
       multiRois.forEach((r, idx) => {
         const div = document.createElement('div');
         div.className = `roi-item ${idx === activeRoiIndex ? 'active' : ''}`;
-        div.onclick = () => selectActiveRoi(idx);
+        
+        // 枠行全体のクリックでアクティブ切替
+        div.addEventListener('click', (e) => {
+          if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'OPTION') {
+            selectActiveRoi(idx);
+          }
+        });
+
         div.innerHTML = `
-          <div>
-            <b>${r.name}</b> (${r.type})
-            <span style="font-size:0.7rem; color:#666;">[OK:${r.okCount} / NG:${r.ngCount}]</span>
+          <div style="flex:1; pointer-events:none;">
+            <b>${r.name}</b>
+            <span style="font-size:0.7rem; color:#666;">[OK:${r.okCount}/NG:${r.ngCount}]</span>
           </div>
-          <div style="display:flex; gap:4px; align-items:center;">
-            <select style="width:70px; padding:2px; font-size:0.7rem;" onchange="changeRoiType(${idx}, this.value, event)">
-              <option value="AI" ${r.type === 'AI' ? 'selected' : ''}>AI外観</option>
-              <option value="COLOR" ${r.type === 'COLOR' ? 'selected' : ''}>色面積</option>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select class="roi-type-select" onchange="changeRoiType(${idx}, this.value, event)" onclick="event.stopPropagation();" ontouchstart="event.stopPropagation();">
+              <option value="AI" ${r.type === 'AI' ? 'selected' : ''}>🤖 AI外観</option>
+              <option value="COLOR" ${r.type === 'COLOR' ? 'selected' : ''}>🟩 色面積</option>
             </select>
-            <button class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;" onclick="deleteRoi(${idx}, event)">×</button>
+            <button class="btn btn-danger" style="padding:6px 10px; font-size:0.8rem;" onclick="deleteRoi(${idx}, event)" ontouchstart="event.stopPropagation();">×</button>
           </div>
         `;
         container.appendChild(div);
@@ -459,7 +478,7 @@
 
       if (multiRois[activeRoiIndex]) {
         const ar = multiRois[activeRoiIndex];
-        document.getElementById('lblActiveRoiInfo').textContent = `${ar.name} 選択中`;
+        document.getElementById('lblActiveRoiInfo').textContent = `${ar.name} (${ar.type === 'AI' ? 'AI外観' : '色面積'}) 選択中`;
         document.getElementById('countOk').textContent = ar.okCount;
         document.getElementById('countNg').textContent = ar.ngCount;
       } else {
@@ -470,8 +489,11 @@
     }
 
     function changeRoiType(idx, newType, e) {
-      if (e) e.stopPropagation();
+      if (e) {
+        e.stopPropagation();
+      }
       multiRois[idx].type = newType;
+      activeRoiIndex = idx;
       updateRoiListUI();
       drawCanvas();
     }
@@ -511,7 +533,6 @@
       if (!isCamRunning) return;
       drawCanvas();
 
-      // 各枠のリアルタイム推論
       for (let i = 0; i < multiRois.length; i++) {
         const r = multiRois[i];
         if (r.type === 'AI' && mobilenetModel && r.knn && r.knn.getNumClasses() > 0) {
@@ -545,12 +566,11 @@
         ctx.fillStyle = isActive ? 'rgba(255, 235, 59, 0.15)' : 'rgba(0, 0, 0, 0.15)';
         ctx.fillRect(r.x, r.y, r.w, r.h);
 
-        // ラベル描画
         ctx.fillStyle = '#000';
-        ctx.fillRect(r.x, r.y - 18, 110, 18);
+        ctx.fillRect(r.x, r.y - 18, 120, 18);
         ctx.fillStyle = '#fff';
         ctx.font = '11px sans-serif';
-        ctx.fillText(`${r.name}: ${r.lastStatus}`, r.x + 4, r.y - 5);
+        ctx.fillText(`${r.name}[${r.type}]: ${r.lastStatus}`, r.x + 4, r.y - 5);
       });
 
       if (isDrawing) {
@@ -564,6 +584,7 @@
     function startLearning(label) {
       if (!isCamRunning) return alert('カメラを起動してください');
       if (!multiRois[activeRoiIndex]) return alert('学習する枠を選択してください');
+      if (multiRois[activeRoiIndex].type !== 'AI') return alert('選択枠が「色面積」モードです。AI外観モードに切り替えてください');
       if (learnInterval) clearInterval(learnInterval);
       learnSample(label);
       learnInterval = setInterval(() => learnSample(label), 200);
@@ -578,7 +599,7 @@
 
     function learnSample(label) {
       const r = multiRois[activeRoiIndex];
-      if (!mobilenetModel || !r.knn || !isCamRunning) return;
+      if (!mobilenetModel || !r.knn || !isCamRunning || r.type !== 'AI') return;
 
       const x = getCroppedRoiTensor(r);
       const logits = mobilenetModel.infer(x, true);
@@ -727,13 +748,13 @@
         };
       });
 
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
       p[name] = {
         roisData,
         aiThreshold: document.getElementById('numAiThreshold').value
       };
 
-      localStorage.setItem('inspect_profiles_v10', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v11', JSON.stringify(p));
       updateProfileList();
       alert(`プロファイル [${name}] を保存しました`);
     }
@@ -741,7 +762,7 @@
     async function loadProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}')[name];
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}')[name];
       if (!p) return;
 
       clearAllRois();
@@ -774,15 +795,15 @@
     function deleteProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name || !confirm('削除しますか？')) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
       delete p[name];
-      localStorage.setItem('inspect_profiles_v10', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v11', JSON.stringify(p));
       updateProfileList();
     }
 
     function updateProfileList() {
       const sel = document.getElementById('selProfile');
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
       sel.innerHTML = '<option value="">-- プロファイル選択 --</option>';
       Object.keys(p).forEach(k => {
         const opt = document.createElement('option'); opt.value = k; opt.textContent = k;
@@ -791,7 +812,7 @@
     }
 
     function exportProfilesJson() {
-      const p = localStorage.getItem('inspect_profiles_v10') || '{}';
+      const p = localStorage.getItem('inspect_profiles_v11') || '{}';
       const blob = new Blob([p], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -806,9 +827,9 @@
       reader.onload = function(evt) {
         try {
           const imported = JSON.parse(evt.target.result);
-          const current = JSON.parse(localStorage.getItem('inspect_profiles_v10') || '{}');
+          const current = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
           const merged = Object.assign({}, current, imported);
-          localStorage.setItem('inspect_profiles_v10', JSON.stringify(merged));
+          localStorage.setItem('inspect_profiles_v11', JSON.stringify(merged));
           updateProfileList();
           alert('JSON設定ファイルを読み込みました');
         } catch(err) { alert('読み込み失敗: ' + err.message); }
@@ -866,14 +887,16 @@
       document.getElementById('txtWorker').value = '';
     }
     function addLog(worker, profile, mode, result, note) {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v10') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v11') || '[]');
       logs.unshift({ date: new Date().toLocaleString(), worker, profile, mode, result, note });
-      localStorage.setItem('inspect_logs_v10', JSON.stringify(logs.slice(0, 500)));
+      localStorage.setItem('inspect_logs_v11', JSON.stringify(logs.slice(0, 500)));
     }
     function exportLogsCSV() {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v10') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v11') || '[]');
       let csv = '日時,担当者,プロファイル,モード,結果,備考\r\n';
-      logs.forEach(l => { csv += `"${l.date}","${l.worker}","${l.profile}","${l.mode}","${l.result}","${l.note}"\r\n`; });
+      logs.forEach(l => {
+        csv += `"${l.date}","${l.worker}","${l.profile}","${l.mode}","${l.result}","${l.note}"\r\n`;
+      });
       const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -882,7 +905,7 @@
     }
 
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+      if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
         e.preventDefault();
         executeInspection();
       }
