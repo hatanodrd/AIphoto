@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AI画像検査＆マルチ枠個別照合システム (プルダウン改善版)</title>
+  <title>AI画像検査＆マルチ枠個別照合システム (枠リサイズ・微調整版)</title>
   
-  <!-- TensorFlow.js & MobileNet & KNN Classifier 安定版 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
@@ -71,7 +70,13 @@
       overflow: hidden;
     }
 
-    #mainCanvas { width: 100%; height: 100%; object-fit: contain; cursor: crosshair; touch-action: none; /* ★ スマホでの画面スクロールを防止 */}
+    #mainCanvas { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: contain; 
+      cursor: crosshair; 
+      touch-action: none;
+    }
     #videoSource { display: none; }
 
     #aiLiveBadge {
@@ -127,6 +132,7 @@
     .btn-ai { background: var(--ai-color); color: white; }
     .btn-dark { background: #37474f; color: white; }
     .btn-outline { background: white; border: 1px solid #90a4ae; color: #37474f; }
+    .btn-active { background: #ff9800; color: white; border: none; }
 
     .btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
     input, select { padding: 5px; border: 1px solid #cfd8dc; border-radius: 4px; font-size: 0.8rem; width: 100%; }
@@ -141,15 +147,14 @@
       gap: 6px;
     }
 
-    /* マルチROIリスト */
     .roi-list-box {
-      max-height: 140px;
+      max-height: 120px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       border: 1px solid #cfd8dc;
-      padding: 6px;
+      padding: 4px;
       border-radius: 4px;
       background: #fafafa;
     }
@@ -159,7 +164,7 @@
       align-items: center;
       justify-content: space-between;
       background: #fff;
-      padding: 6px 8px;
+      padding: 5px 8px;
       border-radius: 4px;
       font-size: 0.8rem;
       border: 1px solid #e0e0e0;
@@ -173,14 +178,30 @@
     .roi-type-select {
       width: auto !important;
       min-width: 90px;
-      padding: 6px 8px !important;
-      font-size: 0.85rem !important;
+      padding: 4px 6px !important;
+      font-size: 0.8rem !important;
       background: #fff;
       border: 1.5px solid var(--primary) !important;
       border-radius: 4px;
-      cursor: pointer;
       font-weight: bold;
       color: #1565c0;
+    }
+
+    /* 微調整コントローラーパネル */
+    .adjust-panel {
+      background: #eef2f7;
+      border: 1px solid #c5d2e0;
+      padding: 6px;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+    .adjust-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
     }
 
     .lock-overlay {
@@ -198,48 +219,18 @@
       padding: 20px;
     }
 
-    /* スマホ向け最適化 */
     @media (max-width: 768px) {
-      body {
-        height: auto;
-        min-height: 100vh;
-        overflow-y: auto;
-      }
-      .main-wrap {
-        flex-direction: column;
-        height: auto;
-        padding: 4px;
-        gap: 6px;
-      }
-      .viewport {
-        flex: none;
-        width: 100%;
-        aspect-ratio: 4 / 3;
-        max-height: 40vh;
-      }
-      .panel {
-        flex: none;
-        width: 100%;
-        overflow-y: visible;
-        padding: 6px;
-        gap: 8px;
-      }
+      body { height: auto; min-height: 100vh; overflow-y: auto; }
+      .main-wrap { flex-direction: column; height: auto; padding: 4px; gap: 6px; }
+      .viewport { flex: none; width: 100%; aspect-ratio: 4 / 3; max-height: 40vh; }
+      .panel { flex: none; width: 100%; overflow-y: visible; padding: 6px; gap: 8px; }
       #secAction { order: 1; }
       #secAI { order: 2; }
       #secRoi { order: 3; }
       #secProfile { order: 4; }
-
-      .btn {
-        padding: 10px;
-        font-size: 0.85rem;
-      }
-      .roi-type-select {
-        font-size: 16px !important; /* iOSでのズーム防止 */
-        padding: 8px 10px !important;
-      }
-      input, select {
-        font-size: 16px !important;
-      }
+      .btn { padding: 10px; font-size: 0.85rem; }
+      .roi-type-select { font-size: 16px !important; padding: 8px 10px !important; }
+      input, select { font-size: 16px !important; }
     }
   </style>
 </head>
@@ -300,14 +291,38 @@
         <button class="btn btn-outline" style="font-size:0.75rem;" onclick="clearAiClasses()">選択枠のAI学習を初期化</button>
       </div>
 
-      <!-- 3. マルチ検査枠管理 -->
+      <!-- 3. マルチ検査枠管理 ＆ サイズ・位置調整 -->
       <div id="secRoi">
-        <div class="sec-title">マルチ検査枠 (画面ドラッグで枠追加)</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span class="sec-title" style="margin-bottom:0;">検査枠管理</span>
+          <!-- 枠ロック切り替えボタン -->
+          <button id="btnToggleLock" class="btn btn-active" style="padding:3px 8px; font-size:0.75rem;" onclick="toggleRoiLock()">🔓 枠編集: ON</button>
+        </div>
+        
         <div class="btn-group" style="margin-bottom:4px;">
-          <button class="btn btn-outline" style="flex:1;" onclick="addCenterRoi()">＋ 枠を中央追加</button>
+          <button class="btn btn-outline" style="flex:1;" onclick="addCenterRoi()">＋ 中央枠追加</button>
           <button class="btn btn-danger" onclick="clearAllRois()">全枠削除</button>
         </div>
+        
         <div class="roi-list-box" id="roiListContainer"></div>
+
+        <!-- 枠サイズ・位置 微調整パネル -->
+        <div class="adjust-panel" id="adjustPanel">
+          <div style="font-weight:bold; color:#37474f;">🎯 選択枠の微調整 (1タップ=10px):</div>
+          <div class="adjust-grid">
+            <button class="btn btn-outline" onclick="adjustRoi('w', 10)">幅 ＋</button>
+            <button class="btn btn-outline" onclick="adjustRoi('w', -10)">幅 －</button>
+            <button class="btn btn-outline" onclick="adjustRoi('h', 10)">高 ＋</button>
+            <button class="btn btn-outline" onclick="adjustRoi('h', -10)">高 －</button>
+          </div>
+          <div class="adjust-grid">
+            <button class="btn btn-outline" onclick="adjustRoi('x', -10)">← 左</button>
+            <button class="btn btn-outline" onclick="adjustRoi('x', 10)">→ 右</button>
+            <button class="btn btn-outline" onclick="adjustRoi('y', -10)">↑ 上</button>
+            <button class="btn btn-outline" onclick="adjustRoi('y', 10)">↓ 下</button>
+          </div>
+          <div style="font-size:0.65rem; color:#d32f2f;">※サイズ変更後は枠内の写り方が変わるため、AIの再学習を推奨します。</div>
+        </div>
       </div>
 
       <!-- 4. プロファイル管理 -->
@@ -346,8 +361,15 @@
 
     let multiRois = [];
     let activeRoiIndex = 0;
+    let isRoiLocked = false; // 枠編集ロック状態
 
-    let isDrawing = false, sX = 0, sY = 0, eX = 0, eY = 0;
+    // マウス・タッチ操作用
+    let dragMode = null; // 'NEW', 'MOVE', 'RESIZE'
+    let resizeHandle = null; // 'TL', 'TR', 'BL', 'BR'
+    let startX = 0, startY = 0;
+    let initialRoi = null;
+
+    const HANDLE_RADIUS = 16; // タップしやすいハンドルの大きさ
 
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -355,7 +377,6 @@
     const cropCanvas = document.createElement('canvas');
     const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
 
-    // --- AI初期化 ---
     async function initAI() {
       const badge = document.getElementById('aiLiveBadge');
       badge.style.display = 'block';
@@ -383,7 +404,6 @@
       }
     }
 
-    // --- ROI管理 ---
     function createNewRoi(x, y, w, h, type = 'AI') {
       const knn = (typeof knnClassifier !== 'undefined' && knnClassifier.create) ? knnClassifier.create() :
                   (typeof tf !== 'undefined' && tf.knnClassifier) ? tf.knnClassifier.create() : null;
@@ -425,10 +445,7 @@
     }
 
     function deleteRoi(idx, e) {
-      if (e) {
-        e.stopPropagation();
-        e.preventDefault();
-      }
+      if (e) { e.stopPropagation(); e.preventDefault(); }
       if (multiRois[idx].knn) multiRois[idx].knn.clearAllClasses();
       multiRois.splice(idx, 1);
       if (activeRoiIndex >= multiRois.length) activeRoiIndex = Math.max(0, multiRois.length - 1);
@@ -444,7 +461,38 @@
       drawCanvas();
     }
 
-    // ★ プルダウンタップ時の干渉防止を強化 ★
+    // --- ロック切り替え ---
+    function toggleRoiLock() {
+      isRoiLocked = !isRoiLocked;
+      const btn = document.getElementById('btnToggleLock');
+      const panel = document.getElementById('adjustPanel');
+      if (isRoiLocked) {
+        btn.textContent = '🔒 枠固定: 検査中';
+        btn.className = 'btn btn-outline';
+        panel.style.opacity = '0.4';
+        panel.style.pointerEvents = 'none';
+      } else {
+        btn.textContent = '🔓 枠編集: ON';
+        btn.className = 'btn btn-active';
+        panel.style.opacity = '1';
+        panel.style.pointerEvents = 'auto';
+      }
+      drawCanvas();
+    }
+
+    // --- 微調整ボタンの処理 ---
+    function adjustRoi(param, val) {
+      const r = multiRois[activeRoiIndex];
+      if (!r || isRoiLocked) return;
+
+      if (param === 'w') r.w = Math.max(30, r.w + val);
+      if (param === 'h') r.h = Math.max(30, r.h + val);
+      if (param === 'x') r.x = Math.max(0, Math.min(canvas.width - r.w, r.x + val));
+      if (param === 'y') r.y = Math.max(0, Math.min(canvas.height - r.h, r.y + val));
+
+      drawCanvas();
+    }
+
     function updateRoiListUI() {
       const container = document.getElementById('roiListContainer');
       container.innerHTML = '';
@@ -452,8 +500,6 @@
       multiRois.forEach((r, idx) => {
         const div = document.createElement('div');
         div.className = `roi-item ${idx === activeRoiIndex ? 'active' : ''}`;
-        
-        // 枠行全体のクリックでアクティブ切替
         div.addEventListener('click', (e) => {
           if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'OPTION') {
             selectActiveRoi(idx);
@@ -489,16 +535,13 @@
     }
 
     function changeRoiType(idx, newType, e) {
-      if (e) {
-        e.stopPropagation();
-      }
+      if (e) e.stopPropagation();
       multiRois[idx].type = newType;
       activeRoiIndex = idx;
       updateRoiListUI();
       drawCanvas();
     }
 
-    // --- カメラ制御 ---
     async function toggleCam() {
       const btn = document.getElementById('btnCam');
       if (isCamRunning) {
@@ -566,19 +609,177 @@
         ctx.fillStyle = isActive ? 'rgba(255, 235, 59, 0.15)' : 'rgba(0, 0, 0, 0.15)';
         ctx.fillRect(r.x, r.y, r.w, r.h);
 
+        // ラベル描画
         ctx.fillStyle = '#000';
         ctx.fillRect(r.x, r.y - 18, 120, 18);
         ctx.fillStyle = '#fff';
         ctx.font = '11px sans-serif';
         ctx.fillText(`${r.name}[${r.type}]: ${r.lastStatus}`, r.x + 4, r.y - 5);
+
+        // 選択中 ＆ 未ロック時は四隅にリサイズハンドルを描画
+        if (isActive && !isRoiLocked) {
+          drawHandle(r.x, r.y);
+          drawHandle(r.x + r.w, r.y);
+          drawHandle(r.x, r.y + r.h);
+          drawHandle(r.x + r.w, r.y + r.h);
+        }
       });
 
-      if (isDrawing) {
+      // 新規作成ドラッグ中
+      if (dragMode === 'NEW') {
         ctx.strokeStyle = '#00e676';
         ctx.lineWidth = 2;
-        ctx.strokeRect(sX, sY, eX - sX, eY - sY);
+        ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
       }
     }
+
+    function drawHandle(x, y) {
+      ctx.fillStyle = '#ff9800';
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // --- タッチ＆マウスポインター処理（移動・リサイズ・新規追加） ---
+    let currentX = 0, currentY = 0;
+
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function getHandleAt(pos, roi) {
+      const dist = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
+      if (dist(pos.x, pos.y, roi.x, roi.y) < HANDLE_RADIUS) return 'TL';
+      if (dist(pos.x, pos.y, roi.x + roi.w, roi.y) < HANDLE_RADIUS) return 'TR';
+      if (dist(pos.x, pos.y, roi.x, roi.y + roi.h) < HANDLE_RADIUS) return 'BL';
+      if (dist(pos.x, pos.y, roi.x + roi.w, roi.y + roi.h) < HANDLE_RADIUS) return 'BR';
+      return null;
+    }
+
+    function isInsideRoi(pos, roi) {
+      return pos.x >= roi.x && pos.x <= roi.x + roi.w && pos.y >= roi.y && pos.y <= roi.y + roi.h;
+    }
+
+    function handlePointerStart(e) {
+      if (e.touches && e.touches.length > 1) return;
+      if (e.cancelable) e.preventDefault();
+
+      const pos = getCanvasCoords(e);
+      startX = pos.x;
+      startY = pos.y;
+      currentX = pos.x;
+      currentY = pos.y;
+
+      if (isRoiLocked) return;
+
+      const activeRoi = multiRois[activeRoiIndex];
+
+      // 1. 選択枠のハンドルタッチ判定（リサイズ）
+      if (activeRoi) {
+        const handle = getHandleAt(pos, activeRoi);
+        if (handle) {
+          dragMode = 'RESIZE';
+          resizeHandle = handle;
+          initialRoi = { ...activeRoi };
+          return;
+        }
+      }
+
+      // 2. 枠内部タッチ判定（選択または移動）
+      let clickedRoiIdx = -1;
+      for (let i = multiRois.length - 1; i >= 0; i--) {
+        if (isInsideRoi(pos, multiRois[i])) {
+          clickedRoiIdx = i;
+          break;
+        }
+      }
+
+      if (clickedRoiIdx !== -1) {
+        selectActiveRoi(clickedRoiIdx);
+        dragMode = 'MOVE';
+        initialRoi = { ...multiRois[clickedRoiIdx] };
+        return;
+      }
+
+      // 3. 何もない場所は新規枠追加ドラッグ
+      dragMode = 'NEW';
+    }
+
+    function handlePointerMove(e) {
+      if (!dragMode || isRoiLocked) return;
+      if (e.cancelable) e.preventDefault();
+
+      const pos = getCanvasCoords(e);
+      currentX = pos.x;
+      currentY = pos.y;
+      const dx = pos.x - startX;
+      const dy = pos.y - startY;
+
+      const activeRoi = multiRois[activeRoiIndex];
+
+      if (dragMode === 'MOVE' && activeRoi && initialRoi) {
+        activeRoi.x = Math.max(0, Math.min(canvas.width - activeRoi.w, initialRoi.x + dx));
+        activeRoi.y = Math.max(0, Math.min(canvas.height - activeRoi.h, initialRoi.y + dy));
+      } else if (dragMode === 'RESIZE' && activeRoi && initialRoi) {
+        if (resizeHandle === 'BR') {
+          activeRoi.w = Math.max(30, initialRoi.w + dx);
+          activeRoi.h = Math.max(30, initialRoi.h + dy);
+        } else if (resizeHandle === 'BL') {
+          const newW = Math.max(30, initialRoi.w - dx);
+          activeRoi.x = initialRoi.x + (initialRoi.w - newW);
+          activeRoi.w = newW;
+          activeRoi.h = Math.max(30, initialRoi.h + dy);
+        } else if (resizeHandle === 'TR') {
+          activeRoi.w = Math.max(30, initialRoi.w + dx);
+          const newH = Math.max(30, initialRoi.h - dy);
+          activeRoi.y = initialRoi.y + (initialRoi.h - newH);
+          activeRoi.h = newH;
+        } else if (resizeHandle === 'TL') {
+          const newW = Math.max(30, initialRoi.w - dx);
+          const newH = Math.max(30, initialRoi.h - dy);
+          activeRoi.x = initialRoi.x + (initialRoi.w - newW);
+          activeRoi.y = initialRoi.y + (initialRoi.h - newH);
+          activeRoi.w = newW;
+          activeRoi.h = newH;
+        }
+      }
+
+      drawCanvas();
+    }
+
+    function handlePointerEnd(e) {
+      if (!dragMode) return;
+
+      if (dragMode === 'NEW') {
+        const x = Math.min(startX, currentX), y = Math.min(startY, currentY);
+        const w = Math.abs(currentX - startX), h = Math.abs(currentY - startY);
+        if (w > 30 && h > 30) {
+          addRoi(x, y, w, h, 'AI');
+        }
+      }
+
+      dragMode = null;
+      resizeHandle = null;
+      initialRoi = null;
+      drawCanvas();
+    }
+
+    canvas.addEventListener('mousedown', handlePointerStart);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    canvas.addEventListener('mouseup', handlePointerEnd);
+
+    canvas.addEventListener('touchstart', handlePointerStart, { passive: false });
+    canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+    canvas.addEventListener('touchend', handlePointerEnd);
 
     // --- AI学習制御 ---
     function startLearning(label) {
@@ -624,7 +825,7 @@
       alert(`[${r.name}] のAI学習データを初期化しました`);
     }
 
-    // --- 一括マルチ枠検査実行 ---
+    // --- 一括検査実行 ---
     async function executeInspection() {
       if (multiRois.length === 0) return alert('検査枠を設定してください');
 
@@ -677,7 +878,6 @@
       }
     }
 
-    // --- 音声・演出 ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function beep(freq, duration, type='sine') {
       try {
@@ -748,13 +948,13 @@
         };
       });
 
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v12') || '{}');
       p[name] = {
         roisData,
         aiThreshold: document.getElementById('numAiThreshold').value
       };
 
-      localStorage.setItem('inspect_profiles_v11', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v12', JSON.stringify(p));
       updateProfileList();
       alert(`プロファイル [${name}] を保存しました`);
     }
@@ -762,7 +962,7 @@
     async function loadProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}')[name];
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v12') || '{}')[name];
       if (!p) return;
 
       clearAllRois();
@@ -795,15 +995,15 @@
     function deleteProfile() {
       const name = document.getElementById('selProfile').value;
       if (!name || !confirm('削除しますか？')) return;
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v12') || '{}');
       delete p[name];
-      localStorage.setItem('inspect_profiles_v11', JSON.stringify(p));
+      localStorage.setItem('inspect_profiles_v12', JSON.stringify(p));
       updateProfileList();
     }
 
     function updateProfileList() {
       const sel = document.getElementById('selProfile');
-      const p = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
+      const p = JSON.parse(localStorage.getItem('inspect_profiles_v12') || '{}');
       sel.innerHTML = '<option value="">-- プロファイル選択 --</option>';
       Object.keys(p).forEach(k => {
         const opt = document.createElement('option'); opt.value = k; opt.textContent = k;
@@ -812,7 +1012,7 @@
     }
 
     function exportProfilesJson() {
-      const p = localStorage.getItem('inspect_profiles_v11') || '{}';
+      const p = localStorage.getItem('inspect_profiles_v12') || '{}';
       const blob = new Blob([p], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -827,9 +1027,9 @@
       reader.onload = function(evt) {
         try {
           const imported = JSON.parse(evt.target.result);
-          const current = JSON.parse(localStorage.getItem('inspect_profiles_v11') || '{}');
+          const current = JSON.parse(localStorage.getItem('inspect_profiles_v12') || '{}');
           const merged = Object.assign({}, current, imported);
-          localStorage.setItem('inspect_profiles_v11', JSON.stringify(merged));
+          localStorage.setItem('inspect_profiles_v12', JSON.stringify(merged));
           updateProfileList();
           alert('JSON設定ファイルを読み込みました');
         } catch(err) { alert('読み込み失敗: ' + err.message); }
@@ -837,54 +1037,6 @@
       reader.readAsText(file);
     }
 
-// --- タッチ＆マウス対応：ドラッグによる枠追加 ---
-    function getCanvasCoords(e) {
-      const rect = canvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      return {
-        x: (clientX - rect.left) * (canvas.width / rect.width),
-        y: (clientY - rect.top) * (canvas.height / rect.height)
-      };
-    }
-
-    function handleDragStart(e) {
-      if (e.touches && e.touches.length > 1) return;
-      if (e.cancelable) e.preventDefault();
-      const pos = getCanvasCoords(e);
-      sX = pos.x;
-      sY = pos.y;
-      isDrawing = true;
-    }
-
-    function handleDragMove(e) {
-      if (!isDrawing) return;
-      if (e.cancelable) e.preventDefault();
-      const pos = getCanvasCoords(e);
-      eX = pos.x;
-      eY = pos.y;
-      drawCanvas();
-    }
-
-    function handleDragEnd(e) {
-      if (!isDrawing) return;
-      isDrawing = false;
-      const x = Math.min(sX, eX), y = Math.min(sY, eY);
-      const w = Math.abs(eX - sX), h = Math.abs(eY - sY);
-      if (w > 25 && h > 25) {
-        addRoi(x, y, w, h, 'AI');
-      }
-    }
-
-    // マウス操作の登録
-    canvas.addEventListener('mousedown', handleDragStart);
-    canvas.addEventListener('mousemove', handleDragMove);
-    canvas.addEventListener('mouseup', handleDragEnd);
-
-    // タッチ操作の登録（画面スクロールを抑止）
-    canvas.addEventListener('touchstart', handleDragStart, { passive: false });
-    canvas.addEventListener('touchmove', handleDragMove, { passive: false });
-    canvas.addEventListener('touchend', handleDragEnd);
     function hexToRgb(hex) {
       const num = parseInt(hex.replace('#',''), 16);
       return { r: (num>>16)&255, g: (num>>8)&255, b: num&255 };
@@ -909,12 +1061,12 @@
       document.getElementById('txtWorker').value = '';
     }
     function addLog(worker, profile, mode, result, note) {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v11') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v12') || '[]');
       logs.unshift({ date: new Date().toLocaleString(), worker, profile, mode, result, note });
-      localStorage.setItem('inspect_logs_v11', JSON.stringify(logs.slice(0, 500)));
+      localStorage.setItem('inspect_logs_v12', JSON.stringify(logs.slice(0, 500)));
     }
     function exportLogsCSV() {
-      const logs = JSON.parse(localStorage.getItem('inspect_logs_v11') || '[]');
+      const logs = JSON.parse(localStorage.getItem('inspect_logs_v12') || '[]');
       let csv = '日時,担当者,プロファイル,モード,結果,備考\r\n';
       logs.forEach(l => {
         csv += `"${l.date}","${l.worker}","${l.profile}","${l.mode}","${l.result}","${l.note}"\r\n`;
